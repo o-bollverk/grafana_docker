@@ -1,0 +1,20 @@
+import pandas as pd
+import scrapy
+from scrapy.crawler import CrawlerProcess
+from src.policy_scraper.policy_scraper.spiders.keyword_spider import KeywordSpider
+from src.constants.scraper_constants import SCRAPER_JSON_PATH
+import logging
+from sqlalchemy import create_engine, MetaData
+from sqlalchemy.exc import OperationalError
+
+database="my_grafana_db"
+user="my_grafana_user"
+password="my_grafana_pwd"
+host="pg_grafana"
+port=5432
+
+
+db_url = f"postgresql://{user}:{password}@{host}:{port}/{database}"
+
+# Creating the SQLAlchemy engine
+engine = create_engine(db_url)

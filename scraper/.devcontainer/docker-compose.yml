@@ -1,0 +1,133 @@
+version: '3'
+
+services:
+  pg_grafana:
+    # image: postgres:15
+    container_name: ${GRAFANA_DB_HOST}
+    build:
+      context: ../resources
+      dockerfile: ../.devcontainer/pg_grafana.Dockerfile
+    restart: always
+    environment:
+      POSTGRES_DB: my_grafana_db
+      POSTGRES_USER: grafanareader
+      POSTGRES_PASSWORD: password
+      PGPORT: 5432
+      IS_GRAFANA_DB: 1
+    ports:
+      - "5411:5432"
+    volumes:
+      - postgres-db-volume-grafana:/var/lib/postgresql/data
+      # - ../opt/dev/resources/db_config/init_grafana_db.sh:/docker-entrypoint-initdb.d/init_grafana_db.sh
+      # - ../opt/dev/resources/db_config/init_sql.sql:/docker-entrypoint-initdb.d/init_sql.sql
+      # - ..:/opt/dev
+    networks:
+      - airflow_network
+    # command: /bin/sh -c "/opt/dev/db_config/init_grafana_db.sh"
+
+  pg_airflow:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: airflow_db
+      POSTGRES_USER: airflow_user
+      POSTGRES_PASSWORD: airflow_pass
+    ports:
+      - "5432:5432"
+      # - "5411:5432"
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow_user", "d",  "airflow_db"]
+      interval: 5s
+      retries: 5
+    networks:
+      - airflow_network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    environment:
+      GF_DATABASE_TYPE: postgres
+      GF_DATABASE_HOST: pg_grafana
+      GF_DATABASE_NAME: my_grafana_db
+      GF_DATABASE_USER: my_grafana_user
+      GF_DATABASE_PASSWORD: my_grafana_pwd
+      GF_DATABASE_SSL_MODE: disable
+    restart: unless-stopped
+    depends_on:
+      - pg_grafana
+    ports:
+      - "3000:3000"
+      # - "5411:5432"
+    volumes:
+      # - ..:/opt/dev
+      - grafana-storage:/var/lib/grafana
+      - postgres-db-volume-grafana:/var/lib/postgresql/data
+    networks:
+      - airflow_network
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: "2"
+    #       memory: "4g"
+
+  airflow-webserver:
+    image: apache/airflow:2.9.0  # apache/airflow:2.0.1
+    restart: always
+    depends_on:
+      - pg_airflow
+    environment:
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow_user:airflow_pass@pg_airflow/airflow_db
+      AIRFLOW__WEBSERVER__SECRET_KEY: "your_secret_key_here"
+      AIRFLOW_HOME: /opt/dev/airflow
+      PYTHONPATH: /opt/dev
+    ports:
+      - "8080:8080"
+      # - "5432:5432"
+    volumes:
+      -  ..:/opt/dev
+    networks:
+      - airflow_network
+    command:
+      - webserver
+
+  airflow-worker:
+    # image: custom-apache/airflow:2.9.0 # apache/airflow:2.0.1
+    build:
+      context: ../resources
+      dockerfile: ../.devcontainer/Dockerfile
+      # no_cache: true
+    working_dir: /opt/dev
+    restart: always
+    depends_on:
+      - pg_airflow
+    environment:
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow_user:airflow_pass@pg_airflow/airflow_db
+      AIRFLOW_HOME: /opt/dev/airflow
+      PYTHONPATH: /opt/dev
+    volumes:
+      -  ..:/opt/dev
+      - postgres-db-volume:/var/lib/postgresql/data
+    networks:
+      - airflow_network
+    deploy:
+      resources:
+        limits:
+          cpus: "6"
+          memory: "10g"
+    command: >
+      bash -c "airflow db init && \
+               airflow users create -u admin -p admin -f admin -l admin -r Admin -e admin@admin.com && \
+               airflow dags reserialize \
+               airflow scheduler"
+
+volumes:
+  postgres-db-volume:
+    driver: local
+  postgres-db-volume-grafana:
+    driver: local
+  grafana-storage: {}
+
+networks:
+  airflow_network:
+    driver: bridge

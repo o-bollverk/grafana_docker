@@ -1,0 +1,193 @@
+version: '3'
+
+services:
+  devcontainer:
+    build: 
+      context: ../resources
+      dockerfile: ../.devcontainer/Dockerfile
+      # target: data-eng-dev
+    command: sleep infinity
+    volumes:
+      - ..:/opt/dev
+      - ${DATA_DIR}:/opt/data
+    deploy:
+      resources:
+        limits:
+          cpus: ${CONTAINER_CPU}
+          memory: ${CONTAINER_MEM}
+  pg_grafana:
+    container_name: pg_grafana
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_DB: my_grafana_db
+      POSTGRES_USER: my_grafana_user
+      POSTGRES_PASSWORD: my_grafana_pwd
+    ports:
+      - "5499:5432"
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+      - ..:/opt/dev
+  pg_airflow:
+    image: postgres:12
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=airflow
+      - POSTGRES_PORT=5411
+    ports:
+      - "5411:5411"     
+  grafana:
+    image: grafana/grafana-enterprise
+    container_name: grafana
+    environment:
+      GF_DATABASE_TYPE: postgres
+      GF_DATABASE_HOST: pg_grafana:5432
+      GF_DATABASE_NAME: my_grafana_db
+      GF_DATABASE_USER: my_grafana_user
+      GF_DATABASE_PASSWORD: my_grafana_pwd
+      GF_DATABASE_SSL_MODE: disable
+    restart: unless-stopped
+    depends_on:
+      - pg_grafana
+    ports:
+      - "127.0.0.1:3000:3000" 
+    volumes:
+      - ..:/opt/dev
+    deploy:
+      resources:
+        limits:
+          cpus: ${CONTAINER_CPU}
+          memory: ${CONTAINER_MEM}
+
+volumes:
+  postgres-db-volume:
+    driver: local
+
+  # airflow-scheduler:
+  #   command: 
+  #     - -c
+  #     - airflow users list || ( airflow db init &&
+  #       airflow users create
+  #         --role Admin
+  #         --username airflow
+  #         --password airflow
+  #         --email airflow@airflow.com
+  #         --firstname airflow
+  #         --lastname airflow )
+  #     - airflow scheduler
+  #   container_name: airflow_scheduler
+  #   restart: always
+  # airflow-webserver:
+  #   command: airflow webserver
+  #   container_name: airflow_webserver
+  #   restart: always
+  #   ports:
+  #     - "5411:5411" 
+
+  # airflow:
+  #   image: apache/airflow:2.6.0
+  #   environment:
+  #     - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+  #     - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://postgres:postgres@postgres:5411/airflow
+  #     - AIRFLOW__CORE__FERNET_KEY=FB0o_zt4e3Ziq3LdUUO7F2Z95cvFFx16hU8jTeR1ASM=
+  #     - AIRFLOW__CORE__LOAD_EXAMPLES=False
+  #     - AIRFLOW__CORE__LOGGING_LEVEL=INFO
+  #   volumes:
+  #     - ./dags:/opt/airflow/dags
+  #     - ./airflow-data/logs:/opt/airflow/logs
+  #     - ./airflow-data/plugins:/opt/airflow/plugins
+  #     - ./airflow-data/airflow.cfg:/opt/airlfow/airflow.cfg
+  #   command:
+  #     - -c
+  #     - airflow users list || ( airflow db init &&
+  #       airflow users create
+  #         --role Admin
+  #         --username airflow
+  #         --password airflow
+  #         --email airflow@airflow.com
+  #         --firstname airflow
+  #         --lastname airflow )
+  #         --airflow_scheduler
+  #         --airflow webserver
+  #   depends_on:
+  #     - pg_airflow
+
+
+#  airflow-init:
+#     << : *airflow-common
+#     container_name: airflow_init
+#     entrypoint: /bin/bash
+#     command:
+#       - -c
+#       - airflow users list || ( airflow db init &&
+#         airflow users create
+#           --role Admin
+#           --username airflow
+#           --password airflow
+#           --email airflow@airflow.com
+#           --firstname airflow
+#           --lastname airflow )
+#     restart: on-failure
+
+#   airflow-webserver:
+#     << : *airflow-common
+#     command: airflow webserver
+#     ports:
+#       - 8080:8080
+#     container_name: airflow_webserver
+#     restart: always
+
+#   airflow-scheduler:
+#     << : *airflow-common
+#     command: airflow scheduler
+#     container_name: airflow_scheduler
+#     restart: always
+
+
+# x-airflow-common:
+#   &airflow-common
+#   image: apache/airflow:2.6.0
+#   environment:
+#     - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+#     - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://postgres:postgres@postgres:5411/airflow
+#     - AIRFLOW__CORE__FERNET_KEY=FB0o_zt4e3Ziq3LdUUO7F2Z95cvFFx16hU8jTeR1ASM=
+#     - AIRFLOW__CORE__LOAD_EXAMPLES=False
+#     - AIRFLOW__CORE__LOGGING_LEVEL=INFO
+#   volumes:
+#     - ./dags:/opt/airflow/dags
+#     - ./airflow-data/logs:/opt/airflow/logs
+#     - ./airflow-data/plugins:/opt/airflow/plugins
+#     - ./airflow-data/airflow.cfg:/opt/airlfow/airflow.cfg
+#   depends_on:
+#     - postgres
+
+
+  # jupyter:
+  #   image: multimno:1.0
+  #   build:
+  #     context: ../resources
+  #     dockerfile: ../.devcontainer/Dockerfile
+  #     target: multimno-dev
+  #     args:
+  #       - JDK_VERSION=${JDK_VERSION}
+  #       - SPARK_VERSION=${SPARK_VERSION}
+  #       - SCALA_VERSION=${SCALA_VERSION}
+  #       - SEDONA_VERSION=${SEDONA_VERSION}
+  #       - GEOTOOLS_WRAPPER_VERSION=${GEOTOOLS_WRAPPER_VERSION}
+  #   container_name: ${CONTAINER_NAME}
+  #   hostname: ${CONTAINER_NAME}
+  #   command: sleep infinity
+  #   volumes:
+  #     - ..:/opt/dev
+  #     - ${DATA_DIR}:/opt/data
+  #     - ${SPARK_LOGS_DIR}:/opt/spark/spark-events
+  #   ports:
+  #     - "127.0.0.1:${JL_PORT}:8888"
+  #     - "127.0.0.1:${SUI_PORT}:4040"
+  #     - "127.0.0.1:${SHS_PORT}:18080"
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: ${CONTAINER_CPU}
+  #         memory: ${CONTAINER_MEM}

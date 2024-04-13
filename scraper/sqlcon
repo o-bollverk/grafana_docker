@@ -1,0 +1,22 @@
+
+$AIRFLOW__CORE__SQL_ALCHEMY_CONN
+export AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow_user:airflow_pass@0.0.0.0:5411/airflow_db
+
+
+export AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow_user:airflow_pass@0.0.0.0:5432/airflow_db
+
+
+export AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow_user:airflow_pass@localhost:5432/airflow_db
+
+
+
+export AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow_user:airflow_pass@pg_airflow/airflow_db
+
+
+export AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow_user:airflow_pass@localhost:5411/airflow_db
+export AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow_user:airflow_pass@0.0.0.0:5432/tcp/airflow_db
+airflow scheduler
+
+postgresql+psycopg2://airflow_user:airflow_pass@0.0.0.0:5411/airflow_db
+
+
