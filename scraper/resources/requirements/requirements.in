@@ -1,5 +1,0 @@
-# ------ Project ------
-pandas~=2.2
-psycopg2-binary
-scrapy
-sqlalchemy==1.4.48
