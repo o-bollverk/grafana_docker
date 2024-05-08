@@ -1,0 +1,18 @@
+apiVersion: 1
+
+datasources:
+  - name: Postgres
+    type: grafana-postgresql-datasource
+    url: pg_grafana:5432
+    database: my_grafana_db
+    user: grafanareader
+    uid: fdin8jx97n7cwc #  to match that of generated json from UI
+    secureJsonData:
+      password: "password"
+    jsonData:
+      sslmode: "disable" # disable/require/verify-ca/verify-full
+      maxOpenConns: 0         # Grafana v5.4+
+      maxIdleConns: 2         # Grafana v5.4+
+      connMaxLifetime: 14400  # Grafana v5.4+
+      postgresVersion: 903 # 903=9.3, 904=9.4, 905=9.5, 906=9.6, 1000=10
+      timescaledb: false

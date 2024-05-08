@@ -1,0 +1,135 @@
+version: '3'
+
+services:
+  pg_grafana:
+    # image: postgres:15
+    container_name: ${GF_DATABASE_HOST}
+    build:
+      context: ../resources # ${SETUP_PATH}/resources #  
+      dockerfile: ../container/pg_grafana.Dockerfile
+    restart: always
+    environment:
+      POSTGRES_DB: ${GF_DATABASE_NAME}
+      POSTGRES_USER: ${GF_DATABASE_USER}
+      POSTGRES_PASSWORD: ${GF_DATABASE_PASSWORD}
+      PGPORT: 5432
+    volumes:
+      - postgres-db-volume-grafana:/var/lib/postgresql/data
+      - ../sample_data/init_csv:/opt/dev/sample_data/init_csv
+    networks:
+      - airflow_network
+
+  pg_airflow:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: airflow_db
+      POSTGRES_USER: airflow_user
+      POSTGRES_PASSWORD: ${AIRFLOW_DB_PWD}
+      PGPORT: 5432
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow_user", "d",  "airflow_db"]
+      interval: 5s
+      retries: 5
+    networks:
+      - airflow_network
+
+  grafana:
+    #image: grafana/grafana:latest
+    build:
+      context: ../resources # ${SETUP_PATH}/resources #
+      dockerfile: ../container/grafana.Dockerfile
+    container_name: grafana
+    environment:
+      GF_DATABASE_TYPE: postgres
+      GF_DATABASE_PASSWORD: ${GF_DATABASE_PASSWORD}
+      GF_DATABASE_HOST: ${GF_DATABASE_HOST}
+      GRAFANA_DB_HOST: ${GF_DATABASE_HOST}
+      GF_DATABASE_NAME: ${GF_DATABASE_NAME}
+      GF_DATABASE_USER: ${GF_DATABASE_USER}
+      GF_DATABASE_SSL_MODE: disable
+      GF_PATHS_PROVISIONING: /usr/share/grafana/conf/provisioning
+    restart: unless-stopped
+    depends_on:
+      - pg_grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - postgres-db-volume-grafana:/var/lib/postgresql/data
+    networks:
+      - airflow_network
+
+  airflow-webserver:
+    image: apache/airflow:2.9.0 
+    restart: always
+    depends_on:
+      - pg_airflow
+    environment:
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow_user:${AIRFLOW_DB_PWD}@pg_airflow/airflow_db
+      # AIRFLOW__WEBSERVER__SECRET_KEY: "your_secret_key_here"
+      AIRFLOW_HOME: /opt/dev/airflow
+      PYTHONPATH: /opt/dev
+    ports:
+      - "8080:8080"
+    volumes:
+      -  ..:/opt/dev
+      - airflow-logs-volume:/opt/airflow/logs
+    networks:
+      - airflow_network
+    command:
+      - webserver
+    user: "${UID}:${GID}"
+
+  airflow-scheduler:
+    # image: custom-apache/airflow:2.9.0 
+    build:
+      context: ../resources # ${SETUP_PATH}/resources #
+      dockerfile: ../container/airflow_scheduler.Dockerfile
+      # no_cache: true
+    working_dir: /opt/dev
+    restart: always
+    depends_on:
+      - pg_airflow
+    environment:
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow_user:${AIRFLOW_DB_PWD}@pg_airflow/airflow_db
+      AIRFLOW_HOME: /opt/dev/airflow
+      PYTHONPATH: /opt/dev
+      GF_DATABASE_NAME: ${GF_DATABASE_NAME}
+      GF_DATABASE_USER: ${GF_DATABASE_USER}
+      GF_DATABASE_PASSWORD:  ${GF_DATABASE_PASSWORD}
+      GF_DATABASE_HOST: ${GF_DATABASE_HOST}
+    volumes:
+      -  ..:/opt/dev
+      - postgres-db-volume:/var/lib/postgresql/data
+      - airflow-logs-volume:/opt/airflow/logs
+      - airflow-scraper-volume:/opt/airflow/scraper_json_output
+    networks:
+      - airflow_network
+    command: >
+      bash -c "airflow db init && \
+               airflow users create -u admin -p admin -f admin -l admin -r Admin -e admin@admin.com && \
+               airflow dags reserialize \
+               airflow dags unpause scrap_data \
+               airflow dags unpause scrap_data_fridays \
+               airflow dags unpause transform_and_store_data \
+               airflow dags unpause clean_data \
+               airflow scheduler"
+    user: "${UID}:${GID}"
+
+
+volumes:
+  airflow-logs-volume:
+    driver: local
+  airflow-scraper-volume:
+    driver: local
+  postgres-db-volume:
+    driver: local
+  postgres-db-volume-grafana:
+    driver: local
+  grafana-storage: {}
+
+networks:
+  airflow_network:
+    driver: bridge
